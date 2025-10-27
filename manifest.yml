@@ -1,0 +1,33 @@
+modules:
+  jira:globalPage:
+    - key: ai-issue-share-hello-world-page
+      resource: main
+      resolver:
+        function: resolver
+      title: Ai-issue-share
+      icon:  resource:assets;logo.png
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/hello-world/build
+
+  - key: assets
+    path: static/assets
+    
+app:
+  runtime:
+    name: nodejs22.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/4dce9fe0-b929-4f0e-857a-26716281e419
+permissions:
+  scopes:
+    - read:jira-work
+    - read:jira-user
+    - storage:app
+  external:
+    fetch:
+      backend:
+        - address: https://forgeapps.clovity.com/
