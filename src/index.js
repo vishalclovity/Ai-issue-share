@@ -1,4 +1,3 @@
-// src/index.js
 import Resolver from '@forge/resolver';
 import { logger } from './utils/logger.js';
 import { fetchIssuesByJql, fetchCurrentUser } from './services/jira.js';
@@ -31,7 +30,7 @@ resolver.define('query-issue-share', async ({ payload }) => {
       console.info('[AI Issue Share] using JQL (dry-run):', jql);
     } else {
       parsed = await parsePromptWithRag({ prompt, orgId, locale, userId });
-      jql = parsed?.jql || null;
+      jql = parsed?.answer || null;
       answer = parsed?.answer || '';
       followups = Array.isArray(parsed?.followups) ? parsed.followups : [{ question: 'Confirm this list or edit the prompt?' }];
       console.info('[AI Issue Share] RAG parse → hasJql?', !!jql, parsed);
@@ -52,8 +51,11 @@ resolver.define('query-issue-share', async ({ payload }) => {
       };
     }
 
+    // richer default fields
     const baseFields = [
-      'summary', 'status', 'priority', 'labels', 'issuetype', 'assignee', 'created', 'updated', 'duedate'
+      'summary','status','priority','labels','issuetype','assignee',
+      'reporter','project','created','updated','duedate','fixVersions',
+      'components','description'
     ];
     const ragFields = Array.isArray(parsed?.fields) ? parsed.fields : [];
     const fields = Array.from(new Set([...baseFields, ...ragFields]));

@@ -51,7 +51,7 @@ const en = {
   },
   assistant: {
     title: "Welcome to Issue Share Assistant",
-    subtitle: "Share Jira issues with redaction, access control, and tracking — from one prompt.",
+    subtitle: "Share Jira issues with redaction, access control, and tracking - from one prompt.",
     quickActions: [
   { id: "open_last7", label: "Open issues (last 7 days)", icon: "users"},
   { id: "unassigned_open", label: "Unassigned open issues", icon: "users"},

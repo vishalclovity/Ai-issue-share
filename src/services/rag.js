@@ -1,14 +1,13 @@
 // src/services/rag.js
 import { logger } from '../utils/logger.js';
 
-const BASE_URL   = process.env.APP_RUNNER_BASE_URL || 'https://forgeapps.clovity.com';
-// Prefer a dedicated token var; fall back to older names if present.
-const AUTH_TOKEN = process.env.RAG_AUTH_TOKEN
+const BASE_URL = process.env.APP_RUNNER_BASE_URL || 'https://forgeapps.clovity.com';
+const API_KEY  = process.env.APP_RUNNER_API_KEY
+  || process.env.RAG_AUTH_TOKEN
   || process.env.APP_RUNNER_AUTH_TOKEN
-  || process.env.APP_RUNNER_API_KEY
-  || '1234';
-const USE_STUB   = !BASE_URL || !AUTH_TOKEN || process.env.USE_RAG_STUB === '1';
-const EVENT      = 'jqlgeneration';
+  || '';
+const USE_STUB = !BASE_URL || !API_KEY || process.env.USE_RAG_STUB === '1';
+const EVENT    = 'jqlgeneration';
 
 // --------- Helpers ----------
 const ISSUE_KEY_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/gi;
@@ -23,14 +22,6 @@ function buildStubJqlFromPrompt(prompt = '') {
 
   return `statusCategory != Done AND updated >= -7d ORDER BY updated DESC`;
 }
-
-// function splitRecipients(recipients = []) {
-//   const list = Array.isArray(recipients) ? recipients : [];
-//   const to  = list[0] || '';
-//   const cc  = list.slice(1);
-//   const bcc = []; // extend later when UI supports BCC
-//   return { to, cc, bcc };
-// }
 
 // --------- Public API ----------
 export async function parsePromptWithRag({ prompt, orgId, locale, userId }) {
@@ -48,20 +39,18 @@ export async function parsePromptWithRag({ prompt, orgId, locale, userId }) {
     return out;
   }
 
-  console.info('[AI Issue Share][RAG] parsePromptWithRag → envOk?', !!BASE_URL && !!AUTH_TOKEN, {
-    baseUrlPresent: !!BASE_URL, authTokenPresent: !!AUTH_TOKEN
+  console.info('[AI Issue Share][RAG] parsePromptWithRag → envOk?', !!BASE_URL && !!API_KEY, {
+    baseUrlPresent: !!BASE_URL, apiKeyPresent: !!API_KEY
   });
 
-  const resp = await fetch(`https://forgeapps.clovity.com/v0/api/query`, {
+  const resp = await fetch(`${BASE_URL}/v0/api/query`, {
     method: 'POST',
     headers: {
-      'x-api-key': process.env.APP_RUNNER_API_KEY,
+      'x-api-key': API_KEY,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ query: prompt, event: EVENT, orgId, locale, userId })
   });
-
-  console.log("resp***",resp)
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -70,11 +59,11 @@ export async function parsePromptWithRag({ prompt, orgId, locale, userId }) {
   }
 
   const raw = await resp.json();
-  
   const result = raw?.data?.result || raw?.result || raw;
-  console.log("reeeeee",result)
+
+  // Ensure we read JQL from the correct field
   const normalized = {
-    jql: result?.answer || null,
+    jql: result?.jql || result?.JQL || null,
     fields: Array.isArray(result?.fields) ? result.fields : [],
     recipients: Array.isArray(result?.recipients) ? result.recipients : [],
     answer: result?.answer || 'Here are the matching issues based on your prompt.',
@@ -108,22 +97,24 @@ export async function sendIssueShareEmail({
     return stub;
   }
 
-  console.info('[AI Issue Share][RAG] sendIssueShareEmail → envOk?', !!BASE_URL && !!AUTH_TOKEN, {
-    recipientsCount: recipients?.length || 0,
+  console.info('[AI Issue Share][RAG] sendIssueShareEmail → envOk?', !!BASE_URL && !!API_KEY, {
+    recipientsCount: Array.isArray(recipients) ? recipients.length : 0,
     hasSubject: !!subject,
     hasBody: !!body
   });
 
-  // const { to, cc, bcc } = splitRecipients(recipients);
-  const to = recipients;
+  // API expects single "to" plus arrays for cc/bcc
+  const to = Array.isArray(recipients) ? recipients[0] : recipients;
+  const ccList = Array.isArray(cc) ? cc : [];
+  const bccList = Array.isArray(bcc) ? bcc : [];
 
   const payload = {
     query: {
-      subject,           // HTML-safe subject from UI
-      body,              // HTML body (feature-rich template), NO raw JQL/JSON
+      subject,           // subject from UI
+      body,              // HTML body
       to,
-      cc,
-      bcc,
+      cc: ccList,
+      bcc: bccList,
       sender: sender || 'AI Issue Share'
     },
     event: 'email_notification',
@@ -131,9 +122,7 @@ export async function sendIssueShareEmail({
     locale
   };
 
-  // console.log("payload**************",payload)
-
-  const resp = await fetch('https://forgeapps.clovity.com/v0/api/email/send', {
+  const resp = await fetch(`${BASE_URL}/v0/api/email/send`, {
     method: 'POST',
     headers: {
       'x-api-key': process.env.APP_RUNNER_API_KEY,
@@ -149,7 +138,7 @@ export async function sendIssueShareEmail({
   }
 
   const out = await resp.json();
-  logger.info('rag:send:ok', { to, ccCount: cc.length, bccCount: bcc.length });
+  logger.info('rag:send:ok', { to, ccCount: ccList.length, bccCount: bccList.length });
   console.info('[AI Issue Share][RAG] send OK', out);
   return out;
 }

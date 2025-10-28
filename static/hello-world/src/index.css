@@ -34,6 +34,10 @@
   --radius: 1rem;
 }
 
+td,th{
+    min-width: 120px !important;
+}
+
 td:first-child, th:first-child{
   padding-left: 20px !important;
   padding-top: 9px !important;
